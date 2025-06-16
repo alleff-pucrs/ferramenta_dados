@@ -355,9 +355,6 @@ class App:
             }
         ], 'chart')
 
-    def plot_data(self):
-        '''Função para plotar os dados'''
-
     def __insert_user_manager(self, username, password, role):
         '''Função para inserir o usuário no MongoDB'''
         if st.session_state.mongo_connection:
@@ -455,7 +452,7 @@ class App:
                 st.write(f"Version: {self.version}")
                 st.write(f"Author: {self.author}")
                 
-            if st.session_state.selected_page == 0:
+            if st.session_state.selected_page == 0: # Home
                 st.markdown("# Análise de Certificados Emitidos")
                 st.markdown("---")
                 st.markdown("### Esse é um projeto para análise dos certificados emitidos na plataforma Canvas e Moodle.")
@@ -469,7 +466,7 @@ class App:
                 st.markdown("- ❌ Gráfico de certificados emitidos na plataforma Moodle (totais e únicos)")
                 st.markdown("- ✅ Integração dos dados com o Banco de Dados")
                 st.markdown("- ✅ Sisetma de Login")
-            elif st.session_state.selected_page == 2:
+            elif st.session_state.selected_page == 2: # Dashboard Certificados
                 sac.segmented(
                     items=[
                         sac.SegmentedItem(label='Linha', icon='graph-up'),
@@ -514,9 +511,9 @@ class App:
                     maior = max(aux)
                     st.metric(label="Certificados Emitidos", value=maior, delta=f"{round(((maior*100)/aux[-2])-100,2)}%")
                 self.get_data()  
-            elif st.session_state.selected_page == "Configurações":
+            elif st.session_state.selected_page == "Configurações": # Configurações
                 st.write("Welcome to the Settings page!")
-            elif st.session_state.selected_page == 22:
+            elif st.session_state.selected_page == 22: 
                 st.write("Welcome to the Info page!")
                 uploaded_files = st.file_uploader("Upload CSV", type=["csv"], accept_multiple_files=True)
                 st.session_state.upload_button = st.button("JUNTA TUDO", on_click=self.junta_tudo, args=(uploaded_files,))
@@ -525,8 +522,7 @@ class App:
                 header = ["Nome estudante", "CPF", "Gênero", "Data de nascimento", "Escolaridade", "Estado", "Status do estudante", "Trilha", "Nível da trilha", "Modalide", "Parceiro", "Afirmativa", "Acessível", "Área TIC", "Área ACM", "Executora"]
                 siproex_files = st.file_uploader("Upload SIPROEX", type=["csv"], accept_multiple_files=True)
                 st.session_state.upload_button = st.button("ANALISE", on_click=self.siproex, args=(siproex_files,))
-
-            elif st.session_state.selected_page == 6:
+            elif st.session_state.selected_page == 6: # Inserir Dados Redes Sociais
                 st.markdown("# Inserção de dados das Redes Sociais")
                 uploaded_files = st.file_uploader("Upload CSV", type=["csv"], accept_multiple_files=True)
                 cl, cr = st.columns([1, 1])
@@ -535,7 +531,7 @@ class App:
                 with cr:
                     ano = st.number_input("Digite o Ano", min_value=2020, max_value=2100, value=2025, step=1)
                 st.session_state.upload_button = st.button("Upload", on_click=self.upload_button_socialmedia, args=(uploaded_files,mes,ano,))
-            elif st.session_state.selected_page == 7:
+            elif st.session_state.selected_page == 7: # Inserir Dados Posts
                 st.write("POSTS")
                 with st.container(border=True):
                     cl, cm, cr = st.columns([1,1,1])
@@ -553,7 +549,7 @@ class App:
                     bt_align_sub = st.columns([1,1,1])
                     with bt_align_sub[1]:
                         st.button("Cadastrar")
-            elif st.session_state.selected_page == 3:
+            elif st.session_state.selected_page == 3: # Dashboard Redes Sociais
                 if not st.session_state.flag_social_media_mongo:
                     st.session_state.ano_op, st.session_state.mes_op = self.get_data_social_media()
                     st.session_state.flag_social_media_mongo = True
@@ -1260,7 +1256,7 @@ class App:
                                     }
                                     }
                                 ], 'chart6')
-            elif st.session_state.selected_page == 5:
+            elif st.session_state.selected_page == 5: # Inserir Dados
                 st.write("Welcome to the Inserir Dados page!")
                 uploaded_files = st.file_uploader("Upload CSV", type=["csv"], accept_multiple_files=True)
                 st.session_state.upload_button = st.button("Upload", on_click=self.upload_button, args=(uploaded_files,))
@@ -1277,9 +1273,6 @@ class App:
             # <img src='https://raw.githubusercontent.com/alleff-pucrs/images_site/refs/heads/main/regua.png?token=GHSAT0AAAAAADDLGE5GCW73UOFBZFKIGDWY2AY626A' alt='Logo' style='width: auto; height: auto;'>
             # </div>"""
             # st.markdown(footer_html, unsafe_allow_html=True)
-    
-    def count_by_track(self):
-        '''Função que conta quantos inscritos tem por trilha'''
 
     def junta_tudo(self, uploaded_files):
         '''Função que junta tudo'''
