@@ -1266,7 +1266,7 @@ class App:
                 st.session_state.upload_button = st.button("Upload", on_click=self.upload_button, args=(uploaded_files,))
             elif st.session_state.selected_page == 15:
 
-                st.button("INSERIR USER DATABASE", on_click=self.__insert_user_manager, args=("duda_ed","grillo12345","user",))
+                st.button("INSERIR USER DATABASE", on_click=self.__insert_user_manager, args=("vitoria_tlab","souza12345","user",))
 
 
                 st.markdown("### TESTE DE INSERÇÃO DE DADOS MOODLE")
