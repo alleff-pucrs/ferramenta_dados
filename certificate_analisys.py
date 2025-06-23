@@ -27,6 +27,9 @@ SOCIAL_MEDIA_JSON = {
     "interacoes": {}
 }
 
+MONTHS_ORDER = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+METRICAS_INSTAGRAM = ["Seguidores", "Visualizações", "Visitas", "Alcance", "Toques", "Interações"]
+
 TRILHAS_OFERTADAS = ["Design para quem não é designer",
                      "Criação de personagens para games",
                      "Fundamentos de programação",
@@ -167,6 +170,14 @@ class App:
     if 'role_flag' not in st.session_state:
         print("Initializing role_flag variable in session state.")
         st.session_state.role_flag = False
+
+    if 'social_media_all' not in st.session_state:
+        print("Initializing social_media_all variable in session state.")
+        st.session_state.social_media_all = {}
+
+    if 'intern_data_test' not in st.session_state:
+        print("Initializing intern_data_test variable in session state.")
+        st.session_state.intern_data_test = None
 
     def __init__(self):
         self.title = "My Streamlit App"
@@ -553,38 +564,53 @@ class App:
                 if not st.session_state.flag_social_media_mongo:
                     st.session_state.ano_op, st.session_state.mes_op = self.get_data_social_media()
                     st.session_state.flag_social_media_mongo = True
-                
+                    st.session_state.social_media_all = self.get_social_media_dict()
+
                 metric_l2, metric_m2, metric_r2 = st.columns([1, 1, 1])
                 with metric_l2:
-                    st.metric(label="Total de Seguidores geral", value=1000, delta=0, border=True)
+                    st.metric(label="Total de Seguidores geral", value=1000, border=True)
                 with metric_m2:
-                    st.metric(label="Total de Alcance geral", value=10000, delta=0, border=True)
+                    st.metric(label="Total de Alcance geral", value=self.get_valor_indicadores("alcance"), border=True)
                 with metric_r2:
-                    st.metric(label="Total de Interações geral", value=50, delta=0, border=True)
-                style_metric_cards(background_color="#000000", border_color="#000000")
+                    st.metric(label="Total de Interações geral", value=self.get_valor_indicadores("interacoes"), border=True)
+                style_metric_cards(background_color="#000000", border_color="#ffffff", border_left_color="#ff0000")
 
                 date_lf,date_rh = st.columns([1, 1])
                 with date_lf:
                     ano_de_postagem = st.selectbox("Selecione o ano", options=st.session_state.ano_op, index=None)
                 with date_rh:
-                    mes_de_postagem = st.selectbox("Selecione o mês", options=st.session_state.mes_op, index=None)
+                    if ano_de_postagem != None:
+                        op = [x["mes"] for x in st.session_state.social_media_mongo if x['ano'] == ano_de_postagem]
+                        op_s = sorted(op, key=lambda x: MONTHS_ORDER.index(x))
+                        st.session_state.mes_op = op_s
+                        mes_de_postagem = st.selectbox("Selecione o mês", options=st.session_state.mes_op, index=None)
+                    else:
+                        mes_de_postagem = st.selectbox("Selecione o mês", options=st.session_state.mes_op, index=None, disabled=True)
 
                 if st.session_state.flag_social_media_mongo:
-                    metric_m, metric_r = st.columns([1, 1])
-                    with metric_m:
-                        st.metric(label="Total de Alcance mês X", value=10000, delta=0, border=True)
-                    with metric_r:
-                        st.metric(label="Total de Interações mês X", value=50, delta=0, border=True)
-                    style_metric_cards(background_color="#000000", border_color="#000000")
+                    if ano_de_postagem != None:
+                        if mes_de_postagem == None:
+                            metric_m, metric_r = st.columns([1, 1])
+                            with metric_m:
+                                st.metric(label=f"Total de Alcance do ano {ano_de_postagem}", value=self.get_valor_indicadores("alcance",ano_de_postagem), border=True)
+                            with metric_r:
+                                st.metric(label=f"Total de Interações do ano {ano_de_postagem}", value=self.get_valor_indicadores("interacoes",ano_de_postagem), border=True)
+                            # style_metric_cards(background_color="#000000", border_color="#000000")
+                        else:
+                            metric_m, metric_r = st.columns([1, 1])
+                            with metric_m:
+                                st.metric(label=f"Total de Alcance do mês {mes_de_postagem} do ano {ano_de_postagem}", value=self.get_valor_indicadores("alcance",ano_de_postagem, mes_de_postagem), border=True)
+                            with metric_r:
+                                st.metric(label=f"Total de Interações do mês {mes_de_postagem} do ano {ano_de_postagem}", value=self.get_valor_indicadores("interacoes",ano_de_postagem, mes_de_postagem), border=True)
+                            # style_metric_cards(background_color="#000000", border_color="#000000")
 
-                    sl, sm, sr = st.columns([1, 1, 1])
-                    with sl:
-                        select_ano = st.selectbox("Ano", options=st.session_state.ano_op, index=None)
-                    with sm:
-                        select_mes = st.selectbox("Mês", options=st.session_state.mes_op, index=None)
-                    with sr:
-                        select_semana = st.selectbox("Semana", options=["01 - 07", "08 - 15", "16 - 24", "25 - 31"], index=None)
+                            sl, sr = st.columns([1, 1])
+                            with sl:
+                                select_metrica = st.selectbox("Selecione a métrica", options=METRICAS_INSTAGRAM, index=None, placeholder="Escolha a métrica") 
+                            with sr:
+                                select_semana = st.selectbox("Semana", options=["01 - 07", "08 - 15", "16 - 24", "25 - 31"], index=None)
 
+                if st.session_state.flag_social_media_mongo and ano_de_postagem != None:
                     # Transform st.session_state.social_media_mongo into a dictionary for easier access
                     social_media_dict = {}
                     for item in st.session_state.social_media_mongo:
@@ -598,19 +624,298 @@ class App:
                             if key not in ['ano', 'mes', '_id', 'rede']:
                                 social_media_dict[year][month][key] = value
 
-                    if select_ano != None:
-                        if select_mes != None:
+                    if ano_de_postagem != None:
+                        if mes_de_postagem != None:
                             major_c_l, major_c_m, major_c_r = st.columns([1, 1, 1])
 
                             indicators = ["Seguidores", "Visualizações", "Visitas", "Alcance", "Toques", "Interações"]
                             colors = ['#26a69a', '#7bb6d4', '#ad5a34', '#4a34ad', '#bfb82e', '#db4471']
                             cont = 0
                             series_data_all = []
+                            if select_metrica == None:
+                                for name in indicators:
+                                    # Convert the chart_data into a format suitable for streamlit_lightweight_charts
+                                    series_data = []
+                                    for date, value in social_media_dict[ano_de_postagem][mes_de_postagem][self.convert_name(name)].items():
+                                        if select_semana != None:
+                                            semana = select_semana.split(" - ")
+                                            # st.write(semana)
+                                            date_aux = date.split("-")
+                                            # st.write(date_aux)
+                                            if date_aux[2] >= semana[0] and date_aux[2] <= semana[1]:
+                                                    series_data.append({
+                                                        "type": 'Line',
+                                                        "data": [{"time": date, "value": int(value)}],
+                                                        "options": {
+                                                            "color": '#26a69a',
+                                                            "lineWidth": 2,}})
+                                        else:
+                                            date_aux = date.split("-")
+                                            if str(date_aux[0]) == str(ano_de_postagem):
+                                                series_data.append({
+                                                    "type": 'Line',
+                                                    "data": [{"time": date, "value": int(value)}],
+                                                    "options": {
+                                                        "color": '#26a69a',
+                                                        "lineWidth": 2,
+                                                    }
+                                                })
 
-                            for name in indicators:
+                                    # Group data by type and create a single series for each type
+                                    grouped_data = {}
+                                    for item in series_data:
+                                        print(item)
+                                        for point in item["data"]:
+                                            if item["type"] not in grouped_data:
+                                                grouped_data[item["type"]] = []
+                                            grouped_data[item["type"]].append(point)
+
+                                    # Combine grouped data into a single series for each type
+                                    combined_series_data = []
+                                    
+                                    for series_type, points in grouped_data.items():
+                                        combined_series_data.append({
+                                            "type": 'Line',
+                                            "data": sorted(points, key=lambda x: x["time"]),
+                                            "options": {
+                                                "color": colors[cont],
+                                                "lineWidth": 2,
+                                            }
+                                        })
+
+                                    series_data = combined_series_data
+                                    series_data_all.append(series_data)
+                                    cont += 1
+                                
+                                with major_c_l:
+                                # Render the chart
+                                    st.markdown("### Seguidores")
+                                    renderLightweightCharts([
+                                        {
+                                        "chart": {
+                                            "height": 200,
+                                            "layout": {
+                                                "background": {
+                                                    "type": 'solid',
+                                                    "color": '#000000'
+                                                },
+                                                "textColor": '#ffffff',
+                                            },
+                                            "grid": {
+                                                "vertLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                },
+                                                "horzLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                }
+                                            },
+                                            "rightPriceScale": {
+                                                "scaleMargins": {"top": 0.4, "bottom": 0.15},
+                                                "priceFormat": {
+                                                    "type": "price",
+                                                    "precision": 0,
+                                                    "minMove": 1
+                                                }
+                                            }
+                                        },
+                                        "series": series_data_all[0],
+                                        "tooltip": {
+                                            "mode": "single",
+                                            "position": "absolute",
+                                            "backgroundColor": "rgba(0, 0, 0, 1)",
+                                            "borderColor": "rgba(255, 255, 255, 1)",
+                                            "borderWidth": 1,
+                                            "textColor": "#ffffff",
+                                            "fontSize": 12,
+                                            "padding": 8,
+                                        }
+                                    }
+                                    ], 'chart1')
+
+                                    # Render the chart
+                                    st.markdown("### Visualizações")
+                                    renderLightweightCharts([
+                                        {
+                                        "chart": {
+                                            "height": 200,
+                                            "layout": {
+                                                "background": {
+                                                    "type": 'solid',
+                                                    "color": '#000000'
+                                                },
+                                                "textColor": '#ffffff',
+                                            },
+                                            "grid": {
+                                                "vertLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                },
+                                                "horzLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                }
+                                            }
+                                        },
+                                        "series": series_data_all[1],
+                                        "tooltip": {
+                                            "mode": "single",
+                                            "position": "absolute",
+                                            "backgroundColor": "rgba(0, 0, 0, 1)",
+                                            "borderColor": "rgba(255, 255, 255, 1)",
+                                            "borderWidth": 1,
+                                            "textColor": "#ffffff",
+                                            "fontSize": 12,
+                                            "padding": 8,
+                                        }
+                                        }
+                                    ], 'chart2')
+                                with major_c_m:
+                                    # Render the chart
+                                    st.markdown("### Visitas")
+                                    renderLightweightCharts([
+                                        {
+                                        "chart": {
+                                            "height": 200,
+                                            "layout": {
+                                                "background": {
+                                                    "type": 'solid',
+                                                    "color": '#000000'
+                                                },
+                                                "textColor": '#ffffff',
+                                            },
+                                            "grid": {
+                                                "vertLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                },
+                                                "horzLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                }
+                                            }
+                                        },
+                                        "series": series_data_all[2],
+                                        "tooltip": {
+                                            "mode": "single",
+                                            "position": "absolute",
+                                            "backgroundColor": "rgba(0, 0, 0, 1)",
+                                            "borderColor": "rgba(255, 255, 255, 1)",
+                                            "borderWidth": 1,
+                                            "textColor": "#ffffff",
+                                            "fontSize": 12,
+                                            "padding": 8,
+                                        }
+                                        }
+                                    ], 'chart3')
+
+                                    # Render the chart
+                                    st.markdown("### Alcance")
+                                    renderLightweightCharts([
+                                        {
+                                        "chart": {
+                                            "height": 200,
+                                            "layout": {
+                                                "background": {
+                                                    "type": 'solid',
+                                                    "color": '#000000'
+                                                },
+                                                "textColor": '#ffffff',
+                                            },
+                                            "grid": {
+                                                "vertLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                },
+                                                "horzLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                }
+                                            }
+                                        },
+                                        "series": series_data_all[3],
+                                        "tooltip": {
+                                            "mode": "single",
+                                            "position": "absolute",
+                                            "backgroundColor": "rgba(0, 0, 0, 1)",
+                                            "borderColor": "rgba(255, 255, 255, 1)",
+                                            "borderWidth": 1,
+                                            "textColor": "#ffffff",
+                                            "fontSize": 12,
+                                            "padding": 8,
+                                        }
+                                        }
+                                    ], 'chart4')
+                                with major_c_r:
+                                # Render the chart
+                                    st.markdown("### Toques")
+                                    renderLightweightCharts([
+                                        {
+                                        "chart": {
+                                            "height": 200,
+                                            "layout": {
+                                                "background": {
+                                                    "type": 'solid',
+                                                    "color": '#000000'
+                                                },
+                                                "textColor": '#ffffff',
+                                            },
+                                            "grid": {
+                                                "vertLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                },
+                                                "horzLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                }
+                                            }
+                                        },
+                                        "series": series_data_all[4],
+                                        "tooltip": {
+                                            "mode": "single",
+                                            "position": "absolute",
+                                            "backgroundColor": "rgba(0, 0, 0, 1)",
+                                            "borderColor": "rgba(255, 255, 255, 1)",
+                                            "borderWidth": 1,
+                                            "textColor": "#ffffff",
+                                            "fontSize": 12,
+                                            "padding": 8,
+                                        }
+                                        }
+                                    ], 'chart5')
+
+                                    # Render the chart
+                                    st.markdown("### Interações")
+                                    renderLightweightCharts([
+                                        {
+                                        "chart": {
+                                            "height": 200,
+                                            "layout": {
+                                                "background": {
+                                                    "type": 'solid',
+                                                    "color": '#000000'
+                                                },
+                                                "textColor": '#ffffff',
+                                            },
+                                            "grid": {
+                                                "vertLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                },
+                                                "horzLines": {
+                                                    "color": 'rgba(197, 203, 206, 0.0)',
+                                                }
+                                            }
+                                        },
+                                        "series": series_data_all[5],
+                                        "tooltip": {
+                                            "mode": "single",
+                                            "position": "absolute",
+                                            "backgroundColor": "rgba(0, 0, 0, 1)",
+                                            "borderColor": "rgba(255, 255, 255, 1)",
+                                            "borderWidth": 1,
+                                            "textColor": "#ffffff",
+                                            "fontSize": 12,
+                                            "padding": 8,
+                                        }
+                                        }
+                                    ], 'chart6')
+
+                            else:
                                 # Convert the chart_data into a format suitable for streamlit_lightweight_charts
                                 series_data = []
-                                for date, value in social_media_dict[select_ano][select_mes][self.convert_name(name)].items():
+                                for date, value in social_media_dict[ano_de_postagem][mes_de_postagem][self.convert_name(select_metrica)].items():
                                     if select_semana != None:
                                         semana = select_semana.split(" - ")
                                         # st.write(semana)
@@ -624,14 +929,16 @@ class App:
                                                         "color": '#26a69a',
                                                         "lineWidth": 2,}})
                                     else:
-                                        series_data.append({
-                                            "type": 'Line',
-                                            "data": [{"time": date, "value": int(value)}],
-                                            "options": {
-                                                "color": '#26a69a',
-                                                "lineWidth": 2,
-                                            }
-                                        })
+                                        date_aux = date.split("-")
+                                        if str(date_aux[0]) == str(ano_de_postagem):
+                                            series_data.append({
+                                                "type": 'Line',
+                                                "data": [{"time": date, "value": int(value)}],
+                                                "options": {
+                                                    "color": '#26a69a',
+                                                    "lineWidth": 2,
+                                                }
+                                            })
 
                                 # Group data by type and create a single series for each type
                                 grouped_data = {}
@@ -659,235 +966,9 @@ class App:
                                 series_data_all.append(series_data)
                                 cont += 1
 
-                            with major_c_l:
-                                # Render the chart
-                                st.markdown("### Seguidores")
-                                renderLightweightCharts([
-                                    {
-                                    "chart": {
-                                        "height": 200,
-                                        "layout": {
-                                            "background": {
-                                                "type": 'solid',
-                                                "color": '#000000'
-                                            },
-                                            "textColor": '#ffffff',
-                                        },
-                                        "grid": {
-                                            "vertLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            },
-                                            "horzLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            }
-                                        },
-                                        "rightPriceScale": {
-                                            "scaleMargins": {"top": 0.4, "bottom": 0.15},
-                                            "priceFormat": {
-                                                "type": "price",
-                                                "precision": 0,
-                                                "minMove": 1
-                                            }
-                                        }
-                                    },
-                                    "series": series_data_all[0],
-                                    "tooltip": {
-                                        "mode": "single",
-                                        "position": "absolute",
-                                        "backgroundColor": "rgba(0, 0, 0, 1)",
-                                        "borderColor": "rgba(255, 255, 255, 1)",
-                                        "borderWidth": 1,
-                                        "textColor": "#ffffff",
-                                        "fontSize": 12,
-                                        "padding": 8,
-                                    }
-                                }
-                                ], 'chart1')
-
-                                # Render the chart
-                                st.markdown("### Visualizações")
-                                renderLightweightCharts([
-                                    {
-                                    "chart": {
-                                        "height": 200,
-                                        "layout": {
-                                            "background": {
-                                                "type": 'solid',
-                                                "color": '#000000'
-                                            },
-                                            "textColor": '#ffffff',
-                                        },
-                                        "grid": {
-                                            "vertLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            },
-                                            "horzLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            }
-                                        }
-                                    },
-                                    "series": series_data_all[1],
-                                    "tooltip": {
-                                        "mode": "single",
-                                        "position": "absolute",
-                                        "backgroundColor": "rgba(0, 0, 0, 1)",
-                                        "borderColor": "rgba(255, 255, 255, 1)",
-                                        "borderWidth": 1,
-                                        "textColor": "#ffffff",
-                                        "fontSize": 12,
-                                        "padding": 8,
-                                    }
-                                    }
-                                ], 'chart2')
-                            with major_c_m:
-                                # Render the chart
-                                st.markdown("### Visitas")
-                                renderLightweightCharts([
-                                    {
-                                    "chart": {
-                                        "height": 200,
-                                        "layout": {
-                                            "background": {
-                                                "type": 'solid',
-                                                "color": '#000000'
-                                            },
-                                            "textColor": '#ffffff',
-                                        },
-                                        "grid": {
-                                            "vertLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            },
-                                            "horzLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            }
-                                        }
-                                    },
-                                    "series": series_data_all[2],
-                                    "tooltip": {
-                                        "mode": "single",
-                                        "position": "absolute",
-                                        "backgroundColor": "rgba(0, 0, 0, 1)",
-                                        "borderColor": "rgba(255, 255, 255, 1)",
-                                        "borderWidth": 1,
-                                        "textColor": "#ffffff",
-                                        "fontSize": 12,
-                                        "padding": 8,
-                                    }
-                                    }
-                                ], 'chart3')
-
-                                # Render the chart
-                                st.markdown("### Alcance")
-                                renderLightweightCharts([
-                                    {
-                                    "chart": {
-                                        "height": 200,
-                                        "layout": {
-                                            "background": {
-                                                "type": 'solid',
-                                                "color": '#000000'
-                                            },
-                                            "textColor": '#ffffff',
-                                        },
-                                        "grid": {
-                                            "vertLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            },
-                                            "horzLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            }
-                                        }
-                                    },
-                                    "series": series_data_all[3],
-                                    "tooltip": {
-                                        "mode": "single",
-                                        "position": "absolute",
-                                        "backgroundColor": "rgba(0, 0, 0, 1)",
-                                        "borderColor": "rgba(255, 255, 255, 1)",
-                                        "borderWidth": 1,
-                                        "textColor": "#ffffff",
-                                        "fontSize": 12,
-                                        "padding": 8,
-                                    }
-                                    }
-                                ], 'chart4')
-                            with major_c_r:
-                            # Render the chart
-                                st.markdown("### Toques")
-                                renderLightweightCharts([
-                                    {
-                                    "chart": {
-                                        "height": 200,
-                                        "layout": {
-                                            "background": {
-                                                "type": 'solid',
-                                                "color": '#000000'
-                                            },
-                                            "textColor": '#ffffff',
-                                        },
-                                        "grid": {
-                                            "vertLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            },
-                                            "horzLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            }
-                                        }
-                                    },
-                                    "series": series_data_all[4],
-                                    "tooltip": {
-                                        "mode": "single",
-                                        "position": "absolute",
-                                        "backgroundColor": "rgba(0, 0, 0, 1)",
-                                        "borderColor": "rgba(255, 255, 255, 1)",
-                                        "borderWidth": 1,
-                                        "textColor": "#ffffff",
-                                        "fontSize": 12,
-                                        "padding": 8,
-                                    }
-                                    }
-                                ], 'chart5')
-
-                                # Render the chart
-                                st.markdown("### Interações")
-                                renderLightweightCharts([
-                                    {
-                                    "chart": {
-                                        "height": 200,
-                                        "layout": {
-                                            "background": {
-                                                "type": 'solid',
-                                                "color": '#000000'
-                                            },
-                                            "textColor": '#ffffff',
-                                        },
-                                        "grid": {
-                                            "vertLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            },
-                                            "horzLines": {
-                                                "color": 'rgba(197, 203, 206, 0.0)',
-                                            }
-                                        }
-                                    },
-                                    "series": series_data_all[5],
-                                    "tooltip": {
-                                        "mode": "single",
-                                        "position": "absolute",
-                                        "backgroundColor": "rgba(0, 0, 0, 1)",
-                                        "borderColor": "rgba(255, 255, 255, 1)",
-                                        "borderWidth": 1,
-                                        "textColor": "#ffffff",
-                                        "fontSize": 12,
-                                        "padding": 8,
-                                    }
-                                    }
-                                ], 'chart6')
-
-                            data_json = json.dumps(series_data_all[5][0]["data"])
-
-                            # Insere o código HTML+JS diretamente via componente
-                            components.html(f"""
+                                data_json = json.dumps(series_data_all[0][0]['data'])
+                                
+                                components.html(f"""
                             <div id="container" style="width: 100%; height: 300px; position: relative;"></div>
 
                             <script src="https://unpkg.com/lightweight-charts@4.0.0/dist/lightweight-charts.standalone.production.js"></script>
@@ -928,7 +1009,7 @@ class App:
                                 const data = {data_json};
                                 areaSeries.setData(data);
 
-                                const symbolName = 'Interações';
+                                const symbolName = '{select_metrica}';
                                 const container = document.getElementById('container');
 
                                 const legend = document.createElement('div');
@@ -961,12 +1042,12 @@ class App:
                                 }};
 
                                 const updateLegend = param => {{
-                                    const valid = param && param.time !== undefined && param.point && param.point.x >= 0 && param.point.y >= 0;
-                                    const bar = valid ? param.seriesData.get(areaSeries) : getLastBar(areaSeries);
-                                    const time = bar.time;
-                                    const price = bar.value !== undefined ? bar.value : bar.close;
-                                    const formattedPrice = formatPrice(price);
-                                    setTooltipHtml(symbolName, time, formattedPrice);
+                                        const valid = param && param.time !== undefined && param.point && param.point.x >= 0 && param.point.y >= 0;
+                                        const bar = valid ? param.seriesData.get(areaSeries) : getLastBar(areaSeries);
+                                        const time = bar.time;
+                                        const price = bar && (bar.value !== undefined ? bar.value : bar.close); // Verifica se bar está definido
+                                        const formattedPrice = price !== undefined ? formatPrice(price) : "Último valor não disponível"; // Formata o preço ou exibe mensagem padrão
+                                        setTooltipHtml(symbolName, time, formattedPrice);
                                 }};
 
                                 chart.subscribeCrosshairMove(updateLegend);
@@ -974,9 +1055,8 @@ class App:
 
                                 chart.timeScale().fitContent();
                             </script>
-                            """, height=520)
+                            """, height=520)                                
 
-                            st.json(st.session_state.social_media_data)
                         else:
                             major_c_l, major_c_m, major_c_r = st.columns([1, 1, 1])
 
@@ -995,14 +1075,18 @@ class App:
                                         for key, value in month_data.items():
                                             for date, val in value.items():
                                                 if self.convert_name(name) == key:
-                                                    series_data.append({
-                                                        "type": 'Line',
-                                                        "data": sorted([{"time": date, "value": int(val)}]),
-                                                        "options": {
-                                                            "color": colors[cont],
-                                                            "lineWidth": 2,
-                                                        }
-                                                    })
+                                                    date_aux = date.split("-")
+                                                    # st.write(date_aux[0])
+                                                    # st.write(ano_de_postagem)
+                                                    if str(date_aux[0]) == str(ano_de_postagem):
+                                                        series_data.append({
+                                                            "type": 'Line',
+                                                            "data": sorted([{"time": date, "value": int(val)}]),
+                                                            "options": {
+                                                                "color": colors[cont],
+                                                                "lineWidth": 2,
+                                                            }
+                                                        })
                                 
                                 # # Group data by type and create a single series for each type
                                 grouped_data_aux = {}
@@ -1657,6 +1741,80 @@ class App:
         else:
             st.warning("Please upload a CSV file.")
 
+    def get_social_media_dict(self):
+        social_media_dict = {}
+        for item in st.session_state.social_media_mongo:
+            year = item.get('ano')
+            month = item.get('mes')
+            if year not in social_media_dict:
+                social_media_dict[year] = {}
+            if month not in social_media_dict[year]:
+                social_media_dict[year][month] = {}
+            for key, value in item.items():
+                if key not in ['ano', 'mes', '_id', 'rede']:
+                    social_media_dict[year][month][key] = value
+        return social_media_dict
+
+    def get_data_indicadores(self, select_ano, select_mes, select_semana):
+        indicators = ["Seguidores", "Visualizações", "Visitas", "Alcance", "Toques", "Interações"]
+        colors = ['#26a69a', '#7bb6d4', '#ad5a34', '#4a34ad', '#bfb82e', '#db4471']
+        cont = 0
+        series_data_all = []
+
+        social_media_dict = self.get_social_media_dict()
+        for name in indicators:
+            # Convert the chart_data into a format suitable for streamlit_lightweight_charts
+            series_data = []
+            for date, value in social_media_dict[select_ano][select_mes][self.convert_name(name)].items():
+                if select_semana != None:
+                    semana = select_semana.split(" - ")
+                    # st.write(semana)
+                    date_aux = date.split("-")
+                    # st.write(date_aux)
+                    if date_aux[2] >= semana[0] and date_aux[2] <= semana[1]:
+                            series_data.append({
+                                "type": 'Line',
+                                "data": [{"time": date, "value": int(value)}],
+                                "options": {
+                                    "color": '#26a69a',
+                                    "lineWidth": 2,}})
+                else:
+                    series_data.append({
+                        "type": 'Line',
+                        "data": [{"time": date, "value": int(value)}],
+                        "options": {
+                            "color": '#26a69a',
+                            "lineWidth": 2,
+                        }
+                    })
+
+            # Group data by type and create a single series for each type
+            grouped_data = {}
+            for item in series_data:
+                print(item)
+                for point in item["data"]:
+                    if item["type"] not in grouped_data:
+                        grouped_data[item["type"]] = []
+                    grouped_data[item["type"]].append(point)
+
+            # Combine grouped data into a single series for each type
+            combined_series_data = []
+            
+            for series_type, points in grouped_data.items():
+                combined_series_data.append({
+                    "type": 'Line',
+                    "data": sorted(points, key=lambda x: x["time"]),
+                    "options": {
+                        "color": colors[cont],
+                        "lineWidth": 2,
+                    }
+                })
+
+            series_data = combined_series_data
+            series_data_all.append(series_data)
+            cont += 1
+        return series_data_all
+
     def get_data_social_media(self):
         '''Função para pegar os dados do MongoDB da Rede Social'''
         data = st.session_state.collection_social.find()
@@ -1664,14 +1822,75 @@ class App:
         ano = []
         mes = []
         dados = []
+
+        redes_dados = {"dados": {}}
+        dados_internos_ano = {"ano": "", "meses": []}
+        
+
         for item in data:
+            dados_internos_mes = {"mes": ""}
+            print(item.get('ano'))
+            if str(item.get('ano')) not in dados_internos_ano["ano"]:
+                dados_internos_ano["ano"] = str(item.get('ano'))
+                dados_internos_mes["mes"] = item.get('mes')
+                dados_internos_ano["meses"].append(dados_internos_mes)
+            else:
+                dados_internos_mes["mes"] = item.get('mes')
+                dados_internos_ano["meses"].append(dados_internos_mes)
+            
+
             if item.get('ano') not in ano:
                 ano.append(item.get('ano'))
             if item.get('mes') not in mes:
                 mes.append(item.get('mes'))
             dados.append(item)
+        redes_dados["dados"] = dados_internos_ano
         st.session_state.social_media_mongo = dados
+        st.session_state.intern_data_test = data
         return ano, mes
+
+    def convert_date_month(self, mes):
+        '''Função para converter o mês em número'''
+        meses = {
+            "Janeiro": "01",
+            "Fevereiro": "02",
+            "Março": "03",
+            "Abril": "04",
+            "Maio": "05",
+            "Junho": "06",
+            "Julho": "07",
+            "Agosto": "08",
+            "Setembro": "09",
+            "Outubro": "10",
+            "Novembro": "11",
+            "Dezembro": "12"
+        }
+        for key, value in meses.items():
+            if mes == value:
+                return key
+
+    def get_valor_indicadores(self, metrica, ano_entry=None, mes_entry=None):
+        '''Função para pegar o valor dos indicadores de Redes Sociais'''
+        keys_metricas = {"metricas": {"alcance": 0,
+                                 "interacoes": 0}}
+        for item in st.session_state.social_media_all:
+            for mes in st.session_state.social_media_all.get(item):
+                for key, value in st.session_state.social_media_all.get(item).get(mes).items():
+                    if ano_entry != None:
+                        if [x for x in keys_metricas.get("metricas").keys() if x == key] != []:
+                            for date, int_value in value.items():
+                                if mes_entry != None:                                          
+                                    if str(date.split("-")[0]).startswith(str(ano_entry)) and self.convert_date_month(date.split("-")[1]) == mes_entry:
+                                        keys_metricas["metricas"][key] += int(int_value)
+                                else:
+                                    if str(date.split("-")[0]).startswith(str(ano_entry)):
+                                        keys_metricas["metricas"][key] += int(int_value)
+                    else:
+                        if [x for x in keys_metricas.get("metricas").keys() if x == key] != []:
+                            for date, int_value in value.items():
+                                keys_metricas["metricas"][key] += int(int_value)
+        return keys_metricas['metricas'][metrica]
+
 
 if __name__ == "__main__":
 
