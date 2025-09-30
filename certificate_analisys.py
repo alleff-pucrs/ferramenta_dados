@@ -15,6 +15,10 @@ import pandas as pd
 import numpy as np
 from pprint import pprint
 from datetime import datetime
+import zipfile
+
+#IMPORTS DO PROJETO
+from analise_moodle import Moodle
 
 SOCIAL_MEDIA_JSON = {
     "rede": "",
@@ -105,12 +109,22 @@ class App:
         print("Initializing upload_data variable in session state.")
         st.session_state.upload_data = False
 
+    if 'collection_logs' not in st.session_state:
+        print("Initializing collection_logs variable in session state.")
+        st.session_state.collection_logs = None
+
+    if 'collection_trilhas' not in st.session_state:
+        print("Initializing collection_trilhas variable in session state.")
+        st.session_state.collection_trilhas = None
+
     if 'mongo_connection' not in st.session_state:
         MONGO_URI = st.secrets["database"]["mongo_uri"]
         MONGO_DB = st.secrets["database"]["mongo_db"]
         MONGO_COLLECTION = st.secrets["database"]["mongo_collection"]
         MONGO_COLLECTION_AUTH = st.secrets["database"]["mongo_collection_auth"]
         MONGO_COLLECTION_SOCIAL = st.secrets["database"]["mongo_collection_social"]
+        MONGO_COLLECTION_TRILHAS = st.secrets["database"]["mongo_collection_trilhas"]
+        MONGO_COLLECTION_LOGS = st.secrets["database"]["mongo_collection_logs"]
 
         try:
             # Connect to MongoDB
@@ -119,6 +133,8 @@ class App:
             st.session_state.collection = st.session_state.db[MONGO_COLLECTION]
             st.session_state.collection_social = st.session_state.db[MONGO_COLLECTION_SOCIAL]
             st.session_state.collection_auth = st.session_state.db[MONGO_COLLECTION_AUTH]
+            st.session_state.collection_trilhas = st.session_state.db[MONGO_COLLECTION_TRILHAS]
+            st.session_state.collection_logs = st.session_state.db[MONGO_COLLECTION_LOGS]
 
             st.session_state.mongo_connection = True
             st.success("MongoDB connection successful.")
@@ -179,6 +195,10 @@ class App:
         print("Initializing intern_data_test variable in session state.")
         st.session_state.intern_data_test = None
 
+    if 'moodle' not in st.session_state:
+        print("Initializing moodle variable in session state.")
+        st.session_state.moodle = Moodle()
+
     def __init__(self):
         self.title = "My Streamlit App"
         self.description = "This is a simple Streamlit app."
@@ -196,6 +216,14 @@ class App:
                 st.session_state.role_flag = True
             
             st.session_state.authenticated = True
+
+            st.session_state.collection_logs.insert_one({
+                "username": st.session_state.user.get("username"),
+                "role": st.session_state.user.get("role"),
+                "action": "login",
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+
             return True
         else:
             st.session_state.authenticated = False
@@ -435,7 +463,9 @@ class App:
                                 sac.MenuItem('Moodle', icon='gitlab', children=[
                                     sac.MenuItem('Análise de Indicadores', icon='file-earmark-text',disabled=st.session_state.role_flag),
                                     sac.MenuItem('Envio de Arquivos', icon='cloud-upload',disabled=st.session_state.role_flag),
-                                ]),]),
+                                ]),
+                                sac.MenuItem('Indicadores', icon='file-earmark-text'),
+                                sac.MenuItem('Pesquisa Trilhas', icon='search'),]),
                         sac.MenuItem(type='divider'),
                         sac.MenuItem('Links', type='group', children=[
                             sac.MenuItem('TICLAB', icon='heart-fill', href='https://ticlab.com.br'),
@@ -445,9 +475,12 @@ class App:
                         sac.MenuItem('Configurações', icon='gear', children=[
                             sac.MenuItem('Configurações Gerais', icon='gear',disabled=st.session_state.role_flag),
                             sac.MenuItem('Configurações de Usuário', icon='person-circle',disabled=st.session_state.role_flag),
+                            sac.MenuItem('Logs de Acesso', icon='journal-text',disabled=st.session_state.role_flag),
+                            sac.MenuItem('Insere Trilhas', icon='plus-lg',disabled=st.session_state.role_flag),
+                            sac.MenuItem('Insere Notas', icon='plus-lg',disabled=st.session_state.role_flag),
+                            sac.MenuItem('Insere Alunos', icon='plus-lg',disabled=st.session_state.role_flag)
                         ]),
                     ], open_all=True, return_index=True, variant='filled')
-                    # st.write(st.session_state.selected_page)
                 if st.session_state.authenticated:
                     st.button("Logout", on_click=lambda: [setattr(st.session_state, 'authenticated', False), setattr(st.session_state, 'selected_page', "Login"), setattr(st.session_state, 'flag_login_bt', False)])
                 st.markdown("#")
@@ -522,10 +555,11 @@ class App:
                     maior = max(aux)
                     st.metric(label="Certificados Emitidos", value=maior, delta=f"{round(((maior*100)/aux[-2])-100,2)}%")
                 self.get_data()  
-            elif st.session_state.selected_page == "Configurações": # Configurações
-                st.write("Welcome to the Settings page!")
             elif st.session_state.selected_page == 22: 
                 st.write("Welcome to the Info page!")
+
+                st.button("INSERIR USER DATABASE", on_click=self.__insert_user_manager, args=("vitoria_tlab","souza12345","user",))
+
                 uploaded_files = st.file_uploader("Upload CSV", type=["csv"], accept_multiple_files=True)
                 st.session_state.upload_button = st.button("JUNTA TUDO", on_click=self.junta_tudo, args=(uploaded_files,))
 
@@ -536,12 +570,14 @@ class App:
             elif st.session_state.selected_page == 6: # Inserir Dados Redes Sociais
                 st.markdown("# Inserção de dados das Redes Sociais")
                 uploaded_files = st.file_uploader("Upload CSV", type=["csv"], accept_multiple_files=True)
-                cl, cr = st.columns([1, 1])
+                cl, cm ,cr = st.columns([1, 1, 1])
                 with cl:
+                    qnt_seguidores = st.number_input("Quantidade de Seguidores", min_value=0, max_value=1000000, value=0, step=1)
+                with cm:
                     mes = st.selectbox("Selecione o mês", options=["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
                 with cr:
                     ano = st.number_input("Digite o Ano", min_value=2020, max_value=2100, value=2025, step=1)
-                st.session_state.upload_button = st.button("Upload", on_click=self.upload_button_socialmedia, args=(uploaded_files,mes,ano,))
+                st.session_state.upload_button = st.button("Upload", on_click=self.upload_button_socialmedia, args=(uploaded_files,mes,ano,qnt_seguidores,))
             elif st.session_state.selected_page == 7: # Inserir Dados Posts
                 st.write("POSTS")
                 with st.container(border=True):
@@ -568,7 +604,8 @@ class App:
 
                 metric_l2, metric_m2, metric_r2 = st.columns([1, 1, 1])
                 with metric_l2:
-                    st.metric(label="Total de Seguidores geral", value=1000, border=True)
+                    seguidores_qnt, delta_val = self.get_seguidores_total()
+                    st.metric(label="Total de Seguidores geral", value=seguidores_qnt, delta=delta_val, border=True)
                 with metric_m2:
                     st.metric(label="Total de Alcance geral", value=self.get_valor_indicadores("alcance"), border=True)
                 with metric_r2:
@@ -664,7 +701,7 @@ class App:
                                     # Group data by type and create a single series for each type
                                     grouped_data = {}
                                     for item in series_data:
-                                        print(item)
+                                        # print(item)
                                         for point in item["data"]:
                                             if item["type"] not in grouped_data:
                                                 grouped_data[item["type"]] = []
@@ -1073,26 +1110,27 @@ class App:
                                 for year, year_data in social_media_dict.items():
                                     for month, month_data in year_data.items():
                                         for key, value in month_data.items():
-                                            for date, val in value.items():
-                                                if self.convert_name(name) == key:
-                                                    date_aux = date.split("-")
-                                                    # st.write(date_aux[0])
-                                                    # st.write(ano_de_postagem)
-                                                    if str(date_aux[0]) == str(ano_de_postagem):
-                                                        series_data.append({
-                                                            "type": 'Line',
-                                                            "data": sorted([{"time": date, "value": int(val)}]),
-                                                            "options": {
-                                                                "color": colors[cont],
-                                                                "lineWidth": 2,
-                                                            }
-                                                        })
+                                            if key != "seguidores_total":
+                                                for date, val in value.items():
+                                                    if self.convert_name(name) == key:
+                                                        date_aux = date.split("-")
+                                                        # st.write(date_aux[0])
+                                                        # st.write(ano_de_postagem)
+                                                        if str(date_aux[0]) == str(ano_de_postagem):
+                                                            series_data.append({
+                                                                "type": 'Line',
+                                                                "data": sorted([{"time": date, "value": int(val)}]),
+                                                                "options": {
+                                                                    "color": colors[cont],
+                                                                    "lineWidth": 2,
+                                                                }
+                                                            })
                                 
                                 # # Group data by type and create a single series for each type
                                 grouped_data_aux = {}
                                 
                                 for item in series_data:
-                                    print(item) #{'type': 'Line', 'data': [{'time': '2025-03-02', 'value': 2}], 'options': {'color': '#db4471', 'lineWidth': 2}}
+                                    # print(item) #{'type': 'Line', 'data': [{'time': '2025-03-02', 'value': 2}], 'options': {'color': '#db4471', 'lineWidth': 2}}
                                     for point in item["data"]:
                                         if item["type"] not in grouped_data_aux:
                                             grouped_data_aux[item["type"]] = []
@@ -1345,12 +1383,50 @@ class App:
                 uploaded_files = st.file_uploader("Upload CSV", type=["csv"], accept_multiple_files=True)
                 st.session_state.upload_button = st.button("Upload", on_click=self.upload_button, args=(uploaded_files,))
             elif st.session_state.selected_page == 15:
+                st.markdown("### INSERÇÃO DE DADOS MOODLE")
+                uploaded_files = st.file_uploader("Carregue os CSVs de Notas e Datas das turmas do Moodle", type=["csv"], accept_multiple_files=True)
+                st.session_state.upload_button_moodlefiles = st.button("Upload", on_click=self.upload_button_moodle, args=(uploaded_files,))
+            elif st.session_state.selected_page == 14: # Analise indicadores Moodle
+                st.write("# Indicadores Moodle")
+            elif st.session_state.selected_page == 16: # Analise indicadores
+                st.write("# Indicadores")
+                uploaded_files = st.file_uploader("Carregue os CSVs", type=["csv"], accept_multiple_files=True)
+                
+                st.write("## Informações Gerais dos inscritos")
 
-                st.button("INSERIR USER DATABASE", on_click=self.__insert_user_manager, args=("vitoria_tlab","souza12345","user",))
+                st.write("## Inserção de Dados")
 
+                st.write("## Indicadores")
+                st.write("### Os indicadores disponíveis são:")
+                st.write("#### - Total de inscritos nas trilhas (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de concluintes nas trilhas (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de certificados emitidos (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de pessoas únicas certificadas (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de concluintes por trilha (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de concluintes por edição (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de concluintes por estado (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de concluintes por escolaridade (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de concluintes por gênero (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de concluintes por faixa etária (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de concluintes por cidade (Canvas e Moodle e Presencial)")
+                st.write("#### - Total de concluintes por cidade/estado (Canvas e Moodle e Presencial)")
+            elif st.session_state.selected_page == 17: # Pesquisa Trilhas
+                st.write("## Pesquisa Trilhas")
 
-                st.markdown("### TESTE DE INSERÇÃO DE DADOS MOODLE")
-                uploaded_files = st.file_uploader("Upload CSV", type=["csv"], accept_multiple_files=True)
+                st.selectbox("Plataforma", options=["Canvas", "Moodle", "Presencial"], index=None, placeholder="Escolha a plataforma")
+                st.selectbox("Trilha", options=["Trilha 1", "Trilha 2", "Trilha 3"], index=None, placeholder="Escolha a trilha")
+                st.selectbox("Edição", options=["Edição 1", "Edição 2", "Edição 3"], index=None, placeholder="Escolha a edição")
+            elif st.session_state.selected_page == 27:
+                st.write('## Insere Trilhas')
+                uploaded_files = st.file_uploader("Carregue os CSVs de Notas e Datas das turmas do Moodle", type=["csv"], accept_multiple_files=True)
+                st.session_state.upload_button_moodlefiles = st.button("Upload", on_click=self.button_insert_trilhas, args=(uploaded_files,))
+            elif st.session_state.selected_page == 28:
+                st.write('## Insere Notas')
+                uploaded_files = st.file_uploader("Carregue os CSVs de Notas e Datas das turmas do Moodle", type=["csv"], accept_multiple_files=True)
+                st.session_state.upload_button_moodlefiles = st.button("Upload", on_click=self.upload_button_moodle, args=(uploaded_files,))
+            elif st.session_state.selected_page == 29:
+                st.write('## Insere Alunos')
+                uploaded_files = st.file_uploader("Carregue os CSVs de Notas e Datas das turmas do Moodle", type=["csv"], accept_multiple_files=True)
                 st.session_state.upload_button_moodlefiles = st.button("Upload", on_click=self.upload_button_moodle, args=(uploaded_files,))
 
             # footer_html = """<div style='text-align: center; background-color: #ffffff; position: fixed; bottom: 0px; left: 338px; right: 0px; margin-bottom: 0px;'>
@@ -1417,6 +1493,13 @@ class App:
                 st.session_state.db.certificados.insert_many(unico["data"])
                 st.session_state.upload_data = True
                 st.success("Data inserted successfully.")
+
+                st.session_state.collection_logs.insert_one({
+                    "username": st.session_state.user.get("username"),
+                    "role": st.session_state.user.get("role"),
+                    "action": "insercao_certificados_canvas",
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
             except pymongo.errors.BulkWriteError as e:
                 st.error(f"Error inserting data into MongoDB: {e}")
 
@@ -1435,13 +1518,14 @@ class App:
         elif name == "Interações":
             return "interacoes"
 
-    def upload_button_socialmedia(self, uploaded_files, mes, ano):
+    def upload_button_socialmedia(self, uploaded_files, mes, ano, qnt_seguidores):
         '''Função de tratamento dos arquivos CSV após upload'''
 
         if uploaded_files != []:
             st.session_state.social_media_data["rede"] = "Instagram"
             st.session_state.social_media_data["mes"] = mes
             st.session_state.social_media_data["ano"] = ano
+            st.session_state.social_media_data["seguidores_total"] = qnt_seguidores
             for uploaded_file in uploaded_files:
                 content = io.StringIO(uploaded_file.read().decode('utf-16'))
                 _redaer = csv.reader(content)
@@ -1504,6 +1588,7 @@ class App:
                         "rede": "",
                         "mes": 0,
                         "ano": 0,
+                        "seguidores_total": 0,
                         "seguidores": {},
                         "visualizacoes": {},
                         "visitas": {},
@@ -1697,22 +1782,71 @@ class App:
             teste[key] = value
 
         if uploaded_files != []:
-            for uploaded_file in uploaded_files:
-                aux = [x for x in teste.keys() if x in uploaded_file.name]
-                if aux != []:
-                    if len(uploaded_file.name.split("_")) > 3:
-                        teste[aux[0]]["file_notas_flag"] = True
-                    elif len(uploaded_file.name.split("_")) == 3:
-                        teste[aux[0]]["file_datas_flag"] = True
-                    st.success("Arquivo correto! " + uploaded_file.name.split("_")[0])
-                    st.write(teste)
-                else:
-                    st.error("Arquivo incorreto! Por favor, verifique o nome do arquivo.")
-                # bytes_data = uploaded_file.read()
-                # st.write("filename:", uploaded_file.name)
-                # content = io.StringIO(bytes_data.decode('utf-8'))
-                # csv_reader = csv.reader(content)
-                # data_list = list(csv_reader) 
+            filename_cpy_notas = [x for x in uploaded_files if x.name.endswith('_NOTAS.csv')]
+            filename_cpy_datas = [x for x in uploaded_files if not x.name.endswith('_NOTAS.csv')]
+            dados_files = {"dados": {}}
+            if len(filename_cpy_notas) == len(filename_cpy_datas):
+                for uploaded_file in uploaded_files:
+                    prefixo_trilha = "_".join(uploaded_file.name.split("_")[0:3]).replace(".csv", "")
+                    if prefixo_trilha not in dados_files["dados"]:
+                        dados_files["dados"][prefixo_trilha] = {"content_notas": [], "content_datas": []}
+                        if "_".join(uploaded_file.name.split("_")[0:3]).replace(".csv", "") == prefixo_trilha:
+                            if uploaded_file.name.endswith('_NOTAS.csv'):
+                                content = io.StringIO(uploaded_file.read().decode('utf-8'))
+                                _redaer = csv.reader(content)
+                                for item in _redaer:
+                                    dados_files["dados"][prefixo_trilha]["content_notas"].append(item)
+                            else:
+                                content = io.StringIO(uploaded_file.read().decode('utf-8'))
+                                _redaer = csv.reader(content)
+                                for item in _redaer:
+                                    dados_files["dados"][prefixo_trilha]["content_datas"].append(item)
+                    else:
+                        if uploaded_file.name.endswith('_NOTAS.csv'):
+                            content = io.StringIO(uploaded_file.read().decode('utf-8'))
+                            _redaer = csv.reader(content)
+                            for item in _redaer:
+                                dados_files["dados"][prefixo_trilha]["content_notas"].append(item)
+                        else:
+                            content = io.StringIO(uploaded_file.read().decode('utf-8'))
+                            _redaer = csv.reader(content)
+                            for item in _redaer:
+                                dados_files["dados"][prefixo_trilha]["content_datas"].append(item)
+                
+                zip_buffer = io.BytesIO()
+                arquivos = []
+                for key, value in dados_files["dados"].items():
+                    st.write(f"Prefixo da trilha: {key}")            
+                    content = st.session_state.moodle.le_dados_notas(key, dados_files["dados"][key]["content_notas"])
+                    teste = st.session_state.moodle.sort_data_moodle(content)
+                    limpo, lost = st.session_state.moodle.read_moodle_datas(dados_files["dados"][key]["content_datas"], teste)
+                    final = st.session_state.moodle.encontra_pessoas(teste, limpo)
+                    final_parceiro = st.session_state.moodle.junta_relatorio_parceiro(lost, final)
+                    st.write(f"Metricas: {st.session_state.moodle.arquivo_metricas(final_parceiro)}")
+                    arq = (key, final_parceiro)
+                    arquivos.append(arq)
+                    st.write(f"Arquivo {key} pronto adicionado ao download!")                    
+
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                    # Primeiro CSV em memória
+                    for key, final_parceiro in arquivos:
+                        # Cria um buffer de string para o CSV
+                        csv_buffer1 = io.StringIO()
+                        writer1 = csv.writer(csv_buffer1)
+                        writer1.writerows(final_parceiro)
+                        zf.writestr(f"{key}.csv", csv_buffer1.getvalue())
+
+                # Voltar o ponteiro para o início do ZIP
+                zip_buffer.seek(0)
+
+                # Botão de download no Streamlit
+                st.download_button(
+                    label="📥 Baixar ZIP",
+                    data=zip_buffer.getvalue(),
+                    file_name="relatorio_parceiros.zip",
+                    mime="application/zip"
+                )
+
         else:
             st.warning("Please upload a CSV file.")
              
@@ -1728,11 +1862,8 @@ class App:
                 content = io.StringIO(bytes_data.decode('utf-8'))
                 csv_reader = csv.reader(content)
                 data_list = list(csv_reader)
-                # st.write("Data from uploaded file:", data_list)
-                # print(uploaded_file._file_urls.upload_url)
+
                 certificate_only, unique_cpf = self.certificate_file_analisys(data_list)
-                # st.write(f"Quantidade de certificados emitidos: {certificate_only}")
-                # st.write(f"Quantidade de pessoas únicas certificadas na plataforma Canvas: {unique_cpf}")
                 
                 total_type["data"].append({"dia": uploaded_file.name.split("_")[0], "qnt": certificate_only, "type": "T"})
                 unico_type["data"].append({"dia": uploaded_file.name.split("_")[0], "qnt": unique_cpf, "type": "U"})
@@ -1890,6 +2021,117 @@ class App:
                             for date, int_value in value.items():
                                 keys_metricas["metricas"][key] += int(int_value)
         return keys_metricas['metricas'][metrica]
+
+    def get_seguidores_total(self):
+        '''Função para obter o valor do total de seguidores, o último valor do mês atual (não o acumulado)'''
+        if st.session_state.social_media_mongo != []:
+            # print(st.session_state.social_media_mongo)
+            sort_aux = sorted(st.session_state.social_media_mongo, key=lambda x: (x['ano'], MONTHS_ORDER.index(x['mes'])))
+            ultimo_mes = sort_aux[-1]
+            penultimo_mes = sort_aux[-2]
+            delta = ultimo_mes['seguidores_total'] - penultimo_mes['seguidores_total']
+            if 'seguidores_total' in ultimo_mes:
+                return ultimo_mes['seguidores_total'], delta
+            else:
+                return 0
+        else:
+            return 0
+
+    def button_indicadores(self):
+        '''Função para atualizar os indicadores'''
+
+    def get_trilhas_database(self):
+        '''Função para obter as trilhas do banco de dados'''
+        try:
+            trilhas = st.session_state.collection_trilhas.find()
+        except Exception as e:
+            st.error(f"Error fetching data from MongoDB: {e}")
+            return None
+        trilhas = list(trilhas)
+        return trilhas
+    
+    def button_insert_alunos(self, uploaded_files):
+        '''Função para inserir os alunos no banco de dados'''
+
+    def button_insert_notas(self, uploaded_files):
+        '''Função para inserir as notas no banco de dados'''
+
+    def button_insert_trilhas(self, uploaded_files):
+        '''Função para inserir as trilhas no banco de dados'''
+        
+        TRILHAS_DICT_INSERT = []
+
+        for uploaded_file in uploaded_files:
+            bytes_data = uploaded_file.read()
+            content = io.StringIO(bytes_data.decode('utf-8'))
+            csv_reader = csv.reader(content, delimiter=';')
+            data_list = list(csv_reader)
+
+            for row in data_list[1:]:
+                aux = {
+                    "nome_trilha": row[0],
+                    "mentor": row[1],
+                    "modulo": row[2],
+                    "plataforma": row[3],
+                    "edicao": row[4],
+                    "inicio_exec": row[5],
+                    "fim_exec": row[6],
+                    "inicio_insc": row[7],
+                    "fim_insc": row[8],
+                    "vagas": row[9],
+                    "turma": row[10],
+                    "parceiro": row[11],
+                    "modalidade": row[12],
+                    "nivel": row[13],
+                    "afirmativa": row[14],
+                    "acessivel": row[15],
+                    "area_tic": row[16],
+                    "area_acm": row[17],
+                    "executora": row[18]
+                }
+                TRILHAS_DICT_INSERT.append(aux)
+        
+        trilhas_to_insert = []
+        trilhas_db = self.get_trilhas_database()
+        if st.session_state.db != None:
+            if trilhas_db != []:
+                try:
+                    for trilha in trilhas_db:
+                        if trilha.get("nome") not in [x.get("nome") for x in TRILHAS_DICT_INSERT]:
+                            trilhas_to_insert.append(trilha)
+                    if trilhas_to_insert != []:
+                        st.session_state.db.trilhas.insert_many(TRILHAS_DICT_INSERT)
+                        st.success("Trilhas inseridas com sucesso.")
+                    else:
+                        st.info("Todas as trilhas já estão cadastradas no banco de dados.")
+                except pymongo.errors.BulkWriteError as e:
+                    st.error(f"Error inserting data into MongoDB: {e}")
+            else:
+                try:
+                    st.session_state.db.trilhas.insert_many(TRILHAS_DICT_INSERT)
+                    st.success("Trilhas inseridas com sucesso.")
+                except pymongo.errors.BulkWriteError as e:
+                    st.error(f"Error inserting data into MongoDB: {e}")
+
+    def analise_completa_canva(self, uploaded_files):
+        '''Função que faz a análise completa dos certificados do Canva'''
+        total_type = {"data": []}
+        unico_type = {"data": []}
+        
+        if uploaded_files != []:
+            for uploaded_file in uploaded_files:
+                bytes_data = uploaded_file.read()
+                st.write("filename:", uploaded_file.name)
+                content = io.StringIO(bytes_data.decode('utf-8'))
+                csv_reader = csv.reader(content)
+                data_list = list(csv_reader)
+
+                clean_info = []
+
+                for row in data_list[1:]:
+                    aux = row[4].split(" ")
+                    edicao = aux[1]
+                    clean_info.append([row[2], row[3], row[5], row[6], row[7], row[8], row[9], row[10], row[12], row[21], row[23], row[4], edicao])
 
 
 if __name__ == "__main__":
