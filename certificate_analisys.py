@@ -56,6 +56,8 @@ TRILHAS_DICT = {
 
 class App:
 
+    st.set_page_config(page_title="Análise Certificados", layout="wide")
+
     if 'client' not in st.session_state:
         print("Initializing MongoDB client variable in session state.")
         st.session_state.client = None
@@ -203,7 +205,6 @@ class App:
         self.description = "This is a simple Streamlit app."
         self.version = "1.0.0"
         self.author = "Alleff Dymytry"
-        st.set_page_config(page_title="Análise Certificados", layout="wide")
 
     @st.cache_resource()
     def authentication(self, username, password):
