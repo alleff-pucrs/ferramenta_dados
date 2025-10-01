@@ -206,7 +206,6 @@ class App:
         self.version = "1.0.0"
         self.author = "Alleff Dymytry"
 
-    @st.cache_resource()
     def authentication(self, username, password):
         '''Função com a lógica de autenticação'''
         mongo_user = st.session_state.collection_auth.find_one({"username": username, "password": password})
