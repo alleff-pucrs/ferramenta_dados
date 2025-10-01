@@ -51,11 +51,10 @@ TRILHAS_DICT = {
                     "VS":"Versionamento de código",
                     "FOO":"Fundamentos de orientação a objetos",
                     "STY":"Storytelling",
-                    "ELX": "Entendendo Linux"}
+                    "ELX": "Entendendo Linux"
+                }
 
 class App:
-
-    st.set_page_config(page_title="Análise Certificados", layout="wide")
 
     if 'client' not in st.session_state:
         print("Initializing MongoDB client variable in session state.")
@@ -204,7 +203,9 @@ class App:
         self.description = "This is a simple Streamlit app."
         self.version = "1.0.0"
         self.author = "Alleff Dymytry"
+        st.set_page_config(page_title="Análise Certificados", layout="wide")
 
+    @st.cache_resource()
     def authentication(self, username, password):
         '''Função com a lógica de autenticação'''
         mongo_user = st.session_state.collection_auth.find_one({"username": username, "password": password})
